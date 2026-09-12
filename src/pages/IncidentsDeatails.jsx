@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import {
   AlertTriangle,
   MapPin,
@@ -6,9 +7,16 @@ import {
   Radio,
   Video,
   BrainCircuit,
+  CheckCircle,
+  XCircle,
 } from 'lucide-react'
 
 function IncidentDetails() {
+  const [status, setStatus] = useState('Unreviewed')
+
+  const isConfirmed = status === 'Confirmed'
+  const isFalsePositive = status === 'False Positive'
+
   return (
     <div className="space-y-6">
       {/* Page Header */}
@@ -26,8 +34,16 @@ function IncidentDetails() {
             High
           </span>
 
-          <span className="rounded-full bg-slate-800 px-2.5 py-1 text-xs font-medium text-slate-400">
-            Unreviewed
+          <span
+            className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+              isConfirmed
+                ? 'bg-emerald-500/10 text-emerald-400'
+                : isFalsePositive
+                  ? 'bg-slate-800 text-slate-400'
+                  : 'bg-slate-800 text-slate-400'
+            }`}
+          >
+            {status}
           </span>
         </div>
 
@@ -193,21 +209,78 @@ function IncidentDetails() {
         </div>
 
         <div className="p-5">
-          <div className="flex items-start gap-3 rounded-lg border border-yellow-500/20 bg-yellow-500/5 p-4">
-            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-yellow-400" />
+          {!isConfirmed && !isFalsePositive && (
+            <div className="rounded-lg border border-yellow-500/20 bg-yellow-500/5 p-4">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-yellow-400" />
 
-            <div>
-              <p className="text-sm font-medium text-white">
-                Human verification required
-              </p>
+                <div>
+                  <p className="text-sm font-medium text-white">
+                    Human verification required
+                  </p>
 
-              <p className="mt-1 text-xs leading-5 text-slate-400">
-                This incident has been automatically detected by the
-                surveillance system. An analyst must review the available
-                evidence before confirming or dismissing the alert.
-              </p>
+                  <p className="mt-1 text-xs leading-5 text-slate-400">
+                    Review the available evidence before confirming or
+                    dismissing this incident.
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-5 flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={() => setStatus('Confirmed')}
+                  className="flex items-center gap-2 rounded-lg bg-emerald-500 px-4 py-2.5 text-sm font-medium text-slate-950 transition hover:bg-emerald-400"
+                >
+                  <CheckCircle className="h-4 w-4" />
+                  Confirm Incident
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setStatus('False Positive')}
+                  className="flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-950 px-4 py-2.5 text-sm font-medium text-slate-300 transition hover:border-slate-600 hover:text-white"
+                >
+                  <XCircle className="h-4 w-4" />
+                  Mark False Positive
+                </button>
+              </div>
             </div>
-          </div>
+          )}
+
+          {isConfirmed && (
+            <div className="flex items-start gap-3 rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-4">
+              <CheckCircle className="mt-0.5 h-5 w-5 text-emerald-400" />
+
+              <div>
+                <p className="text-sm font-medium text-white">
+                  Incident confirmed
+                </p>
+
+                <p className="mt-1 text-xs text-slate-400">
+                  The analyst has confirmed this incident after reviewing the
+                  available evidence.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {isFalsePositive && (
+            <div className="flex items-start gap-3 rounded-lg border border-slate-700 bg-slate-950 p-4">
+              <XCircle className="mt-0.5 h-5 w-5 text-slate-400" />
+
+              <div>
+                <p className="text-sm font-medium text-white">
+                  Marked as false positive
+                </p>
+
+                <p className="mt-1 text-xs text-slate-400">
+                  The analyst has determined that this alert does not require
+                  further incident action.
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       </section>
     </div>
