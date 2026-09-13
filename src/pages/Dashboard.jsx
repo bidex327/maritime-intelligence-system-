@@ -1,5 +1,3 @@
-
-
 import OperationalActivity from '../components/dashboard/OperationalActivity'
 import RecentAlerts from '../components/dashboard/RecentAlerts'
 import SurveillanceOverview from '../components/dashboard/SurvellianceOverview'
@@ -45,7 +43,7 @@ function Dashboard() {
           Surveillance Dashboard
         </h1>
 
-        <p className="mt-1 text-sm text-slate-500">
+        <p className="mt-1 max-w-2xl text-sm text-slate-500">
           Monitor maritime activity, vessel movements and security alerts.
         </p>
       </div>
@@ -66,11 +64,11 @@ function Dashboard() {
       {/* Surveillance Overview */}
       <SurveillanceOverview />
 
-      {/*RecentAlerts*/}
-      <RecentAlerts/>
+      {/* Recent Alerts */}
+      <RecentAlerts />
 
-      {/*OperationalActivity*/}
-      <OperationalActivity/>
+      {/* Operational Activity */}
+      <OperationalActivity />
     </div>
   )
 }

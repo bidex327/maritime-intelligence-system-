@@ -2,20 +2,20 @@ import { Bell, Search } from 'lucide-react'
 
 function Topbar() {
   return (
-    <header className="flex h-20 items-center justify-between border-b border-slate-800 bg-slate-950 px-6">
+    <header className="flex min-h-20 items-center justify-between border-b border-slate-800 bg-slate-950 px-6 pl-18 lg:pl-6">
       {/* Page Context */}
-      <div>
-        <p className="text-xs uppercase tracking-wider text-slate-500">
+      <div className="min-w-0">
+        <p className="text-[10px] uppercase tracking-wider text-slate-500 sm:text-xs">
           Operations Center
         </p>
 
-        <h2 className="mt-1 text-lg font-semibold text-white">
+        <h2 className="mt-1 truncate text-base font-semibold text-white sm:text-lg">
           Maritime Surveillance
         </h2>
       </div>
 
       {/* Actions */}
-      <div className="flex items-center gap-4">
+      <div className="ml-4 flex shrink-0 items-center gap-2 sm:gap-4">
         {/* Search */}
         <button
           type="button"
@@ -37,7 +37,7 @@ function Topbar() {
         </button>
 
         {/* Analyst */}
-        <div className="flex items-center gap-3 border-l border-slate-800 pl-4">
+        <div className="flex items-center gap-3 border-l border-slate-800 pl-3 sm:pl-4">
           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-800 text-sm font-semibold text-slate-300">
             A
           </div>
