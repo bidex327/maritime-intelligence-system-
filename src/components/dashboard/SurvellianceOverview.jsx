@@ -1,4 +1,3 @@
-
 import {
   Crosshair,
   Radio,
@@ -139,6 +138,8 @@ function SurveillanceOverview() {
         {/* Vessel markers */}
         {vessels.map((vessel) => {
           const styles = statusStyles[vessel.status]
+          const leftValue = parseFloat(vessel.position.left)
+          const opensLeft = leftValue > 55
 
           return (
             <div
@@ -163,7 +164,11 @@ function SurveillanceOverview() {
               </div>
 
               {/* Vessel information */}
-              <div className="absolute left-7 top-[-8px] min-w-36 rounded-lg border border-slate-700 bg-slate-900/95 px-3 py-2 shadow-xl backdrop-blur-sm">
+              <div
+                className={`absolute top-[-8px] min-w-36 rounded-lg border border-slate-700 bg-slate-900/95 px-3 py-2 shadow-xl backdrop-blur-sm ${
+                  opensLeft ? 'right-7' : 'left-7'
+                }`}
+              >
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-xs font-medium text-white">
                     {vessel.name}

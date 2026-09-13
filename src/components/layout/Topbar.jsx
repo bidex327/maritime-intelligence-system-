@@ -2,7 +2,7 @@ import { Bell, Search } from 'lucide-react'
 
 function Topbar() {
   return (
-    <header className="flex min-h-20 items-center justify-between border-b border-slate-800 bg-slate-950 px-6 pl-18 lg:pl-6">
+    <header className="flex min-h-20 items-center justify-between border-b border-slate-800 bg-slate-950 px-6 pl-[4.5rem] lg:pl-6">
       {/* Page Context */}
       <div className="min-w-0">
         <p className="text-[10px] uppercase tracking-wider text-slate-500 sm:text-xs">

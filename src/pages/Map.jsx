@@ -201,6 +201,8 @@ function Map() {
           {/* Vessel Markers */}
           {vessels.map((vessel) => {
             const styles = statusStyles[vessel.status]
+            const leftValue = parseFloat(vessel.position.left)
+            const opensLeft = leftValue > 55
 
             return (
               <div
@@ -228,7 +230,11 @@ function Map() {
                 </div>
 
                 {/* Vessel Card */}
-                <div className="absolute left-8 top-[-8px] z-20 w-40 rounded-lg border border-slate-700 bg-slate-900/95 p-3 shadow-xl backdrop-blur-sm">
+                <div
+                  className={`absolute top-[-8px] z-20 w-40 rounded-lg border border-slate-700 bg-slate-900/95 p-3 shadow-xl backdrop-blur-sm ${
+                    opensLeft ? 'right-8' : 'left-8'
+                  }`}
+                >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <p className="truncate text-xs font-medium text-white">
