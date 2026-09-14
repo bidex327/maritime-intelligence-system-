@@ -1,3 +1,4 @@
+
 import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import {
@@ -9,6 +10,9 @@ import {
   ShieldCheck,
   Menu,
   X,
+  Camera,
+  Radio,
+  ScanLine,
 } from 'lucide-react'
 
 const navigationItems = [
@@ -47,9 +51,7 @@ function Sidebar() {
       {/* Sidebar */}
       <aside
         className={`fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-slate-800 bg-slate-950 transition-transform duration-200 lg:static lg:translate-x-0 ${
-          mobileOpen
-            ? 'translate-x-0'
-            : '-translate-x-full'
+          mobileOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
         {/* Brand */}
@@ -82,7 +84,7 @@ function Sidebar() {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 space-y-1 px-3 py-6">
+        <nav className="space-y-1 px-3 py-6">
           {navigationItems.map((item) => {
             const Icon = item.icon
 
@@ -108,8 +110,91 @@ function Sidebar() {
           })}
         </nav>
 
+        {/* AI Monitor */}
+        <div className="px-4 pb-4">
+          <div className="overflow-hidden rounded-lg border border-slate-800 bg-slate-900/70">
+            {/* AI Monitor Header */}
+            <div className="flex items-center justify-between border-b border-slate-800 px-3 py-2.5">
+              <div className="flex items-center gap-2">
+                <Camera className="h-4 w-4 text-emerald-400" />
+
+                <span className="text-xs font-semibold uppercase tracking-wider text-slate-300">
+                  AI Monitor
+                </span>
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+
+                <span className="text-[10px] font-semibold text-emerald-400">
+                  LIVE
+                </span>
+              </div>
+            </div>
+
+            {/* Detection Summary */}
+            <div className="space-y-3 p-3">
+              <div>
+                <div className="mb-1.5 flex items-center justify-between">
+                  <span className="text-[10px] uppercase tracking-wider text-slate-500">
+                    Active Target
+                  </span>
+
+                  <ScanLine className="h-3.5 w-3.5 text-emerald-400" />
+                </div>
+
+                <p className="truncate text-sm font-medium text-white">
+                  Unknown Vessel
+                </p>
+
+                <p className="mt-0.5 text-[10px] text-slate-500">
+                  Vessel detected
+                </p>
+              </div>
+
+              {/* Detection Metrics */}
+              <div className="grid grid-cols-2 gap-2">
+                <div className="rounded-md border border-slate-800 bg-slate-950/70 p-2">
+                  <p className="text-[9px] uppercase tracking-wider text-slate-500">
+                    Confidence
+                  </p>
+
+                  <p className="mt-1 text-xs font-semibold text-emerald-400">
+                    94%
+                  </p>
+                </div>
+
+                <div className="rounded-md border border-slate-800 bg-slate-950/70 p-2">
+                  <p className="text-[9px] uppercase tracking-wider text-slate-500">
+                    Status
+                  </p>
+
+                  <p className="mt-1 text-xs font-semibold text-emerald-400">
+                    Tracking
+                  </p>
+                </div>
+              </div>
+
+              {/* Camera Status */}
+              <div className="flex items-center justify-between border-t border-slate-800 pt-3">
+                <div className="flex items-center gap-2">
+                  <Radio className="h-3.5 w-3.5 text-emerald-400" />
+
+                  <span className="text-[10px] text-slate-400">
+                    Drone Camera 01
+                  </span>
+                </div>
+
+                <span className="text-[9px] font-medium uppercase tracking-wider text-emerald-400">
+                  Online
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* System Status */}
-        <div className="border-t border-slate-800 p-4">
+        <div className="mt-auto border-t border-slate-800 p-4">
           <div className="rounded-lg bg-slate-900 p-3">
             <div className="flex items-center gap-2">
               <span className="h-2 w-2 rounded-full bg-emerald-400" />
