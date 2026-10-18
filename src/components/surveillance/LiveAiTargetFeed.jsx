@@ -1,4 +1,3 @@
-
 import { useEffect, useRef, useState } from 'react'
 import axios from 'axios'
 import {
@@ -13,11 +12,12 @@ import {
 } from 'lucide-react'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
-const MAX_FILE_SIZE = 100 * 1024 * 1024
+const MAX_IMAGE_SIZE = 10 * 1024 * 1024
+const MAX_VIDEO_SIZE = 100 * 1024 * 1024
 const MAX_VIDEO_DURATION = 30
 const VIDEO_EXTENSIONS = ['mp4', 'mov', 'avi']
 
-function LiveAITargetFeed() {
+function LiveAITargetFeed({ onDetectionResult }) {
   const [selectedFile, setSelectedFile] = useState(null)
   const [previewUrl, setPreviewUrl] = useState('')
   const [result, setResult] = useState(null)
@@ -47,7 +47,7 @@ function LiveAITargetFeed() {
   async function handleFileChange(event) {
     const file = event.target.files?.[0]
 
-    // Allow choosing the same file again after a failed attempt.
+    // Allow selecting the same file again.
     event.target.value = ''
 
     if (!file) return
@@ -66,8 +66,15 @@ function LiveAITargetFeed() {
       return
     }
 
-    if (file.size > MAX_FILE_SIZE) {
-      setError('The file is too large. Maximum allowed size is 100 MB.')
+    // Match the Python API limits: images 10 MB, videos 100 MB.
+    const maxSize = video ? MAX_VIDEO_SIZE : MAX_IMAGE_SIZE
+
+    if (file.size > maxSize) {
+      setError(
+        video
+          ? 'Video size must not exceed 100 MB.'
+          : 'Image size must not exceed 10 MB.',
+      )
       return
     }
 
@@ -78,9 +85,15 @@ function LiveAITargetFeed() {
         const duration = await new Promise((resolve, reject) => {
           const videoElement = document.createElement('video')
           videoElement.preload = 'metadata'
-          videoElement.onloadedmetadata = () => resolve(videoElement.duration)
-          videoElement.onerror = () =>
+
+          videoElement.onloadedmetadata = () => {
+            resolve(videoElement.duration)
+          }
+
+          videoElement.onerror = () => {
             reject(new Error('The video could not be opened.'))
+          }
+
           videoElement.src = temporaryUrl
         })
 
@@ -94,7 +107,9 @@ function LiveAITargetFeed() {
           return
         }
       } catch {
-        setError('Could not read this video. Try another MP4, MOV, or AVI file.')
+        setError(
+          'Could not read this video. Try another MP4, MOV, or AVI file.',
+        )
         return
       } finally {
         URL.revokeObjectURL(temporaryUrl)
@@ -113,14 +128,20 @@ function LiveAITargetFeed() {
     }
 
     if (!API_BASE_URL) {
-      setError('API URL is missing. Check your frontend environment settings.')
+      setError(
+        'API URL is missing. Check your frontend environment settings.',
+      )
       return
     }
 
     const formData = new FormData()
     formData.append('file', selectedFile)
 
-    const endpoint = isVideo ? '/detect-video' : '/detect'
+    const video = VIDEO_EXTENSIONS.includes(
+      selectedFile.name.split('.').pop()?.toLowerCase(),
+    )
+
+    const endpoint = video ? '/detect-video' : '/detect'
 
     setLoading(true)
     setError('')
@@ -132,9 +153,15 @@ function LiveAITargetFeed() {
         formData,
       )
 
-      setResult(response.data)
+      const data = response.data
+
+      setResult(data)
+
+      // Send real API results to the parent surveillance dashboard.
+      onDetectionResult?.(data, video)
     } catch (err) {
       const detail = err.response?.data?.detail
+
       setError(
         typeof detail === 'string'
           ? detail
@@ -151,18 +178,32 @@ function LiveAITargetFeed() {
   const imageHeight = result?.image?.height ?? 0
 
   const detectionCount = isVideo
-    ? (result?.total_detections ?? result?.detection_count ?? 0)
+    ? (result?.total_detections ?? 0)
     : (result?.detection_count ?? detections.length)
 
   function formatTimestamp(value) {
-    if (typeof value === 'string' && value.includes(':')) return value
+    if (typeof value === 'string' && value.includes(':')) {
+      return value
+    }
 
     const seconds = Number(value ?? 0)
-    if (!Number.isFinite(seconds)) return 'Unknown time'
+
+    if (!Number.isFinite(seconds)) {
+      return 'Unknown time'
+    }
 
     const minutes = Math.floor(seconds / 60)
     const remainingSeconds = (seconds % 60).toFixed(1).padStart(4, '0')
+
     return `${minutes}:${remainingSeconds}`
+  }
+
+  function formatConfidence(confidence) {
+    const value = Number(confidence)
+
+    return Number.isFinite(value)
+      ? `${(value * 100).toFixed(1)}%`
+      : '—'
   }
 
   return (
@@ -190,13 +231,20 @@ function LiveAITargetFeed() {
         <div className="flex shrink-0 items-center gap-2">
           <Circle
             className={`h-2.5 w-2.5 ${
-              result
-                ? 'fill-emerald-400 text-emerald-400'
-                : 'fill-slate-500 text-slate-500'
+              loading
+                ? 'animate-pulse fill-amber-400 text-amber-400'
+                : result?.success
+                  ? 'fill-emerald-400 text-emerald-400'
+                  : 'fill-slate-500 text-slate-500'
             }`}
           />
+
           <span className="text-xs font-medium text-slate-400">
-            {loading ? 'ANALYSING' : result ? 'ANALYSED' : 'READY'}
+            {loading
+              ? 'ANALYSING'
+              : result?.success
+                ? 'ANALYSED'
+                : 'READY'}
           </span>
         </div>
       </div>
@@ -217,15 +265,13 @@ function LiveAITargetFeed() {
                 className="absolute inset-0 h-full w-full object-contain"
               />
 
-              {result &&
+              {result?.success &&
                 imageWidth > 0 &&
                 imageHeight > 0 &&
                 detections.map((detection, index) => {
                   const { x1, y1, x2, y2 } = detection.bbox ?? {}
 
-                  if (
-                    ![x1, y1, x2, y2].every(Number.isFinite)
-                  ) {
+                  if (![x1, y1, x2, y2].every(Number.isFinite)) {
                     return null
                   }
 
@@ -242,7 +288,7 @@ function LiveAITargetFeed() {
                     >
                       <span className="absolute -top-6 left-0 whitespace-nowrap rounded bg-emerald-400 px-1.5 py-1 text-[10px] font-semibold text-slate-950">
                         {detection.class_name} (
-                        {(detection.confidence * 100).toFixed(1)}%)
+                        {formatConfidence(detection.confidence)})
                       </span>
 
                       <ScanLine className="absolute right-1 top-1 h-3 w-3 text-emerald-300" />
@@ -264,12 +310,13 @@ function LiveAITargetFeed() {
           ) : (
             <Wifi className="h-3.5 w-3.5 text-emerald-400" />
           )}
+
           <span className="text-[10px] font-medium uppercase tracking-wider text-slate-300">
             {isVideo ? 'Video Analysis' : 'Image Analysis'}
           </span>
         </div>
 
-        {result && (
+        {result?.success && (
           <div className="absolute bottom-3 left-3 rounded-md bg-slate-950/80 px-2 py-1">
             <span className="text-[10px] font-medium text-emerald-400">
               {detectionCount} detection(s)
@@ -309,12 +356,13 @@ function LiveAITargetFeed() {
             ) : (
               <ScanLine className="h-4 w-4" />
             )}
+
             {loading ? 'Analysing...' : 'Detect Vessels'}
           </button>
         </div>
 
         <p className="text-xs text-slate-500">
-          Images or MP4, MOV, AVI videos · Videos up to 30 seconds and 100 MB
+          Images up to 10 MB · MP4, MOV, AVI videos up to 30 seconds and 100 MB
         </p>
 
         {selectedFile && (
@@ -333,13 +381,14 @@ function LiveAITargetFeed() {
           </div>
         )}
 
-        {result && (
+        {result?.success && (
           <>
             <div className="grid grid-cols-2 divide-x divide-slate-800 rounded-lg border border-slate-800">
               <div className="min-w-0 p-3">
                 <p className="text-[10px] uppercase tracking-wider text-slate-500">
-                  {isVideo ? 'Frame Detections' : 'Detected Targets'}
+                  {isVideo ? 'Total Frame Detections' : 'Detected Targets'}
                 </p>
+
                 <p className="mt-1 text-lg font-semibold text-white">
                   {detectionCount}
                 </p>
@@ -349,6 +398,7 @@ function LiveAITargetFeed() {
                 <p className="text-[10px] uppercase tracking-wider text-slate-500">
                   Model
                 </p>
+
                 <p className="mt-1 truncate text-sm font-medium text-emerald-400">
                   {result.model ?? 'Unknown'}
                 </p>
@@ -362,9 +412,15 @@ function LiveAITargetFeed() {
                     Video Frame Results
                   </h4>
 
-                  {result.frames_analysed != null && (
+                  {result.video?.frames_analysed != null && (
                     <p className="text-xs text-slate-500">
-                      Frames analysed: {result.frames_analysed}
+                      Frames analysed: {result.video.frames_analysed}
+                    </p>
+                  )}
+
+                  {result.video?.duration_seconds != null && (
+                    <p className="text-xs text-slate-500">
+                      Video duration: {result.video.duration_seconds} seconds
                     </p>
                   )}
 
@@ -373,21 +429,23 @@ function LiveAITargetFeed() {
 
                     return (
                       <div
-                        key={`${frame.timestamp ?? frame.timestamp_seconds ?? frameIndex}`}
+                        key={`${frame.timestamp ?? frameIndex}`}
                         className="space-y-2 rounded-lg border border-slate-800 bg-slate-900/70 p-3"
                       >
                         <div className="flex items-center justify-between gap-3">
                           <h5 className="text-sm font-semibold text-white">
                             Frame {frameIndex + 1}
                           </h5>
+
                           <span className="text-xs text-emerald-400">
-                            {formatTimestamp(
-                              frame.timestamp_seconds ??
-                                frame.timestamp ??
-                                frame.time_seconds,
-                            )}
+                            {formatTimestamp(frame.timestamp)}
                           </span>
                         </div>
+
+                        <p className="text-xs text-slate-500">
+                          {frame.detection_count ?? frameDetections.length}{' '}
+                          detection(s)
+                        </p>
 
                         {frameDetections.length > 0 ? (
                           frameDetections.map((detection, index) => (
@@ -399,16 +457,16 @@ function LiveAITargetFeed() {
                                 <p className="truncate text-sm text-white">
                                   {detection.class_name ?? 'Unknown vessel'}
                                 </p>
+
                                 {detection.class_id != null && (
                                   <p className="text-xs text-slate-500">
                                     Class ID: {detection.class_id}
                                   </p>
                                 )}
                               </div>
+
                               <span className="shrink-0 text-sm font-semibold text-emerald-400">
-                                {Number.isFinite(detection.confidence)
-                                  ? `${(detection.confidence * 100).toFixed(1)}%`
-                                  : '—'}
+                                {formatConfidence(detection.confidence)}
                               </span>
                             </div>
                           ))
@@ -441,15 +499,16 @@ function LiveAITargetFeed() {
                   >
                     <div className="min-w-0">
                       <p className="truncate text-sm font-medium text-white">
-                        {detection.class_name}
+                        {detection.class_name ?? 'Unknown vessel'}
                       </p>
+
                       <p className="text-xs text-slate-500">
-                        Class ID: {detection.class_id}
+                        Class ID: {detection.class_id ?? 'Unknown'}
                       </p>
                     </div>
 
                     <span className="shrink-0 text-sm font-semibold text-emerald-400">
-                      {(detection.confidence * 100).toFixed(1)}%
+                      {formatConfidence(detection.confidence)}
                     </span>
                   </div>
                 ))}
