@@ -1,12 +1,11 @@
-
 import {
   Crosshair,
   Radio,
   Video,
   Navigation,
   Activity,
+  AlertTriangle,
 } from 'lucide-react'
-import { useState } from 'react'
 
 import LiveAITargetFeed from '../surveillance/LiveAiTargetFeed'
 
@@ -123,34 +122,97 @@ function SurveillanceOverview() {
             </span>
           </div>
 
-          {/* Detection summary */}
+
+{/* Detection summary */}
 {detectionData && (
-  <div className="absolute left-5 top-24 z-10 w-56 rounded-lg border border-slate-800 bg-slate-900/95 p-3 shadow-xl">
-    <div className="flex items-center justify-between gap-2">
-      <p className="text-xs font-semibold text-white">
-        AI Detections
-      </p>
+  <div className="absolute left-5 top-24 z-10 w-60 rounded-lg border border-slate-800 bg-slate-900/95 p-3 shadow-xl">
+    {(() => {
+      const hasDetections = totalDetections > 0
 
-      <span className="rounded bg-emerald-500/10 px-2 py-1 text-[10px] text-emerald-400">
-        {isVideo ? 'VIDEO' : 'IMAGE'}
-      </span>
-    </div>
+      return (
+        <>
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs font-semibold text-white">
+              AI Detections
+            </p>
 
-    <p className="mt-2 text-2xl font-semibold text-white">
-      {totalDetections}
-    </p>
+            <span
+              className={`rounded px-2 py-1 text-[10px] ${
+                hasDetections
+                  ? 'bg-emerald-500/10 text-emerald-400'
+                  : 'bg-amber-500/10 text-amber-400'
+              }`}
+            >
+              {isVideo ? 'VIDEO' : 'IMAGE'}
+            </span>
+          </div>
 
-    <p className="text-[10px] text-slate-400">
-      {totalDetections > 0
-        ? 'Objects detected by the AI model'
-        : 'Analysis complete — no objects detected'}
-    </p>
+          <div className="mt-3 flex items-center gap-3">
+            <div
+              className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${
+                hasDetections
+                  ? 'bg-emerald-500/10'
+                  : 'bg-amber-500/10'
+              }`}
+            >
+            {hasDetections ? (
+  <Crosshair className="h-5 w-5 text-emerald-400" />
+) : (
+  <AlertTriangle className="h-5 w-5 text-amber-400" />
+)}
+            </div>
 
-    {result?.model && (
-      <p className="mt-2 truncate text-[10px] text-slate-500">
-        Model: {result.model}
-      </p>
-    )}
+            <div>
+              <p className="text-2xl font-bold text-white">
+                {totalDetections}
+              </p>
+
+              <p
+                className={`text-[10px] font-semibold ${
+                  hasDetections
+                    ? 'text-emerald-400'
+                    : 'text-amber-400'
+                }`}
+              >
+            <p className="text-[10px] leading-relaxed text-slate-300">
+  {hasDetections
+    ? 'Detection successful. Review identified targets.'
+    : 'WARNING: No targets detected. Verify image quality and surveillance coverage.'}
+</p>
+              </p>
+            </div>
+          </div>
+
+          <div
+            className={`mt-3 flex items-start gap-2 rounded-md p-2 ${
+              hasDetections
+                ? 'bg-emerald-500/5'
+                : 'bg-amber-500/5'
+            }`}
+          >
+            <span
+              className={`mt-1 h-2 w-2 shrink-0 rounded-full ${
+                hasDetections
+                  ? 'bg-emerald-400'
+                  : 'bg-amber-400'
+              }`}
+            />
+
+            <p className="text-[10px] leading-relaxed text-slate-300">
+              {hasDetections
+                ? 'Target detection successful. Review detected vessels below.'
+                : 'Warning: No targets identified. Verify image quality and surveillance coverage.'}
+            </p>
+          </div>
+
+          {result?.model && (
+            <p className="mt-2 truncate text-[10px] text-slate-500">
+              Model: {result.model}
+            </p>
+          )}
+        </>
+      )
+    })()}
   </div>
 )}
 
