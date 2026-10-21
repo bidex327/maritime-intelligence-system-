@@ -124,32 +124,36 @@ function SurveillanceOverview() {
           </div>
 
           {/* Detection summary */}
-          <div className="absolute left-5 top-24 z-10 w-56 rounded-lg border border-slate-800 bg-slate-900/95 p-3 shadow-xl">
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-xs font-semibold text-white">
-                AI Detections
-              </p>
-              <span className="rounded bg-emerald-500/10 px-2 py-1 text-[10px] text-emerald-400">
-                {isVideo ? 'VIDEO' : 'IMAGE'}
-              </span>
-            </div>
+{detectionData && (
+  <div className="absolute left-5 top-24 z-10 w-56 rounded-lg border border-slate-800 bg-slate-900/95 p-3 shadow-xl">
+    <div className="flex items-center justify-between gap-2">
+      <p className="text-xs font-semibold text-white">
+        AI Detections
+      </p>
 
-            <p className="mt-2 text-2xl font-semibold text-white">
-              {result ? totalDetections : '--'}
-            </p>
+      <span className="rounded bg-emerald-500/10 px-2 py-1 text-[10px] text-emerald-400">
+        {isVideo ? 'VIDEO' : 'IMAGE'}
+      </span>
+    </div>
 
-            <p className="text-[10px] text-slate-500">
-              {result
-                ? 'Objects detected by the AI model'
-                : 'Waiting for image or video analysis'}
-            </p>
+    <p className="mt-2 text-2xl font-semibold text-white">
+      {totalDetections}
+    </p>
 
-            {result?.model && (
-              <p className="mt-2 truncate text-[10px] text-slate-500">
-                Model: {result.model}
-              </p>
-            )}
-          </div>
+    <p className="text-[10px] text-slate-400">
+      {totalDetections > 0
+        ? 'Objects detected by the AI model'
+        : 'Analysis complete — no objects detected'}
+    </p>
+
+    {result?.model && (
+      <p className="mt-2 truncate text-[10px] text-slate-500">
+        Model: {result.model}
+      </p>
+    )}
+  </div>
+)}
+
 
           {/* Actual detection markers */}
           {detections.map((detection, index) => {

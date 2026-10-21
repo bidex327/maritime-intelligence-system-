@@ -1,3 +1,4 @@
+
 import { useEffect, useRef, useState } from 'react'
 import axios from 'axios'
 import {
@@ -9,6 +10,7 @@ import {
   LoaderCircle,
   AlertCircle,
   Film,
+  Trash2,
 } from 'lucide-react'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
@@ -25,6 +27,7 @@ function LiveAITargetFeed({ onDetectionResult }) {
   const [error, setError] = useState('')
 
   const fileInputRef = useRef(null)
+  const requestIdRef = useRef(0)
 
   const isVideo = selectedFile
     ? VIDEO_EXTENSIONS.includes(
@@ -32,6 +35,7 @@ function LiveAITargetFeed({ onDetectionResult }) {
       )
     : false
 
+  // Release preview URLs when the selected file changes or the component unmounts.
   useEffect(() => {
     if (!selectedFile) {
       setPreviewUrl('')
@@ -43,6 +47,25 @@ function LiveAITargetFeed({ onDetectionResult }) {
 
     return () => URL.revokeObjectURL(objectUrl)
   }, [selectedFile])
+
+  // Clear the current selection and results locally.
+  function clearDetectionResults() {
+    // Invalidate any outstanding detection request so it cannot restore old results.
+    requestIdRef.current += 1
+
+    setSelectedFile(null)
+    setPreviewUrl('')
+    setResult(null)
+    setLoading(false)
+    setError('')
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+
+    // Clear results displayed by the parent dashboard as well.
+    onDetectionResult?.(null, false)
+  }
 
   async function handleFileChange(event) {
     const file = event.target.files?.[0]
@@ -66,7 +89,6 @@ function LiveAITargetFeed({ onDetectionResult }) {
       return
     }
 
-    // Match the Python API limits: images 10 MB, videos 100 MB.
     const maxSize = video ? MAX_VIDEO_SIZE : MAX_IMAGE_SIZE
 
     if (file.size > maxSize) {
@@ -88,6 +110,8 @@ function LiveAITargetFeed({ onDetectionResult }) {
 
           videoElement.onloadedmetadata = () => {
             resolve(videoElement.duration)
+            videoElement.removeAttribute('src')
+            videoElement.load()
           }
 
           videoElement.onerror = () => {
@@ -116,9 +140,15 @@ function LiveAITargetFeed({ onDetectionResult }) {
       }
     }
 
+    // Prevent an earlier request from restoring results for a previous file.
+    requestIdRef.current += 1
+
     setSelectedFile(file)
     setResult(null)
     setError('')
+    setLoading(false)
+
+    onDetectionResult?.(null, false)
   }
 
   async function handleDetection() {
@@ -142,6 +172,7 @@ function LiveAITargetFeed({ onDetectionResult }) {
     )
 
     const endpoint = video ? '/detect-video' : '/detect'
+    const currentRequestId = ++requestIdRef.current
 
     setLoading(true)
     setError('')
@@ -153,13 +184,16 @@ function LiveAITargetFeed({ onDetectionResult }) {
         formData,
       )
 
+      // Ignore results if the user has cleared or changed the selection.
+      if (currentRequestId !== requestIdRef.current) return
+
       const data = response.data
 
       setResult(data)
-
-      // Send real API results to the parent surveillance dashboard.
       onDetectionResult?.(data, video)
     } catch (err) {
+      if (currentRequestId !== requestIdRef.current) return
+
       const detail = err.response?.data?.detail
 
       setError(
@@ -168,7 +202,9 @@ function LiveAITargetFeed({ onDetectionResult }) {
           : err.message || 'Detection failed. Please try again.',
       )
     } finally {
-      setLoading(false)
+      if (currentRequestId === requestIdRef.current) {
+        setLoading(false)
+      }
     }
   }
 
@@ -180,6 +216,8 @@ function LiveAITargetFeed({ onDetectionResult }) {
   const detectionCount = isVideo
     ? (result?.total_detections ?? 0)
     : (result?.detection_count ?? detections.length)
+
+  const hasContent = Boolean(selectedFile || result || error)
 
   function formatTimestamp(value) {
     if (typeof value === 'string' && value.includes(':')) {
@@ -210,13 +248,19 @@ function LiveAITargetFeed({ onDetectionResult }) {
     <section className="overflow-hidden rounded-xl border border-slate-800 bg-slate-950">
       <div className="flex items-center justify-between border-b border-slate-800 px-4 py-3">
         <div className="flex min-w-0 items-center gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10">
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            aria-label="Choose an image or video for vessel detection"
+            title="Upload an image or video"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 transition hover:bg-emerald-500/20 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+          >
             {isVideo ? (
               <Film className="h-5 w-5 text-emerald-400" />
             ) : (
               <Camera className="h-5 w-5 text-emerald-400" />
             )}
-          </div>
+          </button>
 
           <div className="min-w-0">
             <h3 className="truncate text-sm font-semibold text-white">
@@ -229,6 +273,18 @@ function LiveAITargetFeed({ onDetectionResult }) {
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
+          {hasContent && (
+            <button
+              type="button"
+              onClick={clearDetectionResults}
+              aria-label="Clear selected media and detection results"
+              title="Clear image, video, and detection results"
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-red-500/10 hover:text-red-400 focus:outline-none focus:ring-2 focus:ring-red-400"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          )}
+
           <Circle
             className={`h-2.5 w-2.5 ${
               loading
