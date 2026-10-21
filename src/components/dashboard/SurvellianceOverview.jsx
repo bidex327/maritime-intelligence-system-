@@ -1,3 +1,5 @@
+
+import { useState } from 'react'
 import {
   Crosshair,
   Radio,
@@ -9,28 +11,12 @@ import {
 
 import LiveAITargetFeed from '../surveillance/LiveAiTargetFeed'
 
-const statusStyles = {
-  Normal: {
-    dot: 'bg-emerald-400',
-    text: 'text-emerald-400',
-    ring: 'ring-emerald-400/20',
-  },
-  Monitoring: {
-    dot: 'bg-amber-400',
-    text: 'text-amber-400',
-    ring: 'ring-amber-400/20',
-  },
-  Alert: {
-    dot: 'bg-red-500',
-    text: 'text-red-400',
-    ring: 'ring-red-500/20',
-  },
-}
-
 function SurveillanceOverview() {
   const [detectionData, setDetectionData] = useState(null)
 
   function handleDetectionResult(result, isVideo) {
+    if (!result) return
+
     setDetectionData({ result, isVideo })
   }
 
@@ -49,6 +35,8 @@ function SurveillanceOverview() {
       ))
     : (result?.detection_count ?? detections.length)
 
+  const hasDetections = totalDetections > 0
+
   return (
     <section className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900">
       {/* Header */}
@@ -56,7 +44,6 @@ function SurveillanceOverview() {
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <Activity className="h-4 w-4 shrink-0 text-emerald-400" />
-
             <h2 className="text-base font-semibold text-white">
               Surveillance Overview
             </h2>
@@ -122,120 +109,119 @@ function SurveillanceOverview() {
             </span>
           </div>
 
-
-{/* Detection summary */}
-{detectionData && (
-  <div className="absolute left-5 top-24 z-10 w-60 rounded-lg border border-slate-800 bg-slate-900/95 p-3 shadow-xl">
-    {(() => {
-      const hasDetections = totalDetections > 0
-
-      return (
-        <>
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-xs font-semibold text-white">
-              AI Detections
-            </p>
-
-            <span
-              className={`rounded px-2 py-1 text-[10px] ${
-                hasDetections
-                  ? 'bg-emerald-500/10 text-emerald-400'
-                  : 'bg-amber-500/10 text-amber-400'
-              }`}
-            >
-              {isVideo ? 'VIDEO' : 'IMAGE'}
-            </span>
-          </div>
-
-          <div className="mt-3 flex items-center gap-3">
+          {/* AI Detection Summary: visible only after a result arrives */}
+          {detectionData && (
             <div
-              className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${
+              className={`absolute left-5 top-24 z-10 w-60 rounded-lg border p-3 shadow-xl ${
                 hasDetections
-                  ? 'bg-emerald-500/10'
-                  : 'bg-amber-500/10'
+                  ? 'border-emerald-500/30 bg-slate-900/95'
+                  : 'border-amber-500/40 bg-slate-900/95'
               }`}
             >
-            {hasDetections ? (
-  <Crosshair className="h-5 w-5 text-emerald-400" />
-) : (
-  <AlertTriangle className="h-5 w-5 text-amber-400" />
-)}
-            </div>
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-semibold text-white">
+                  AI Detections
+                </p>
 
-            <div>
-              <p className="text-2xl font-bold text-white">
-                {totalDetections}
-              </p>
+                <span
+                  className={`rounded px-2 py-1 text-[10px] ${
+                    hasDetections
+                      ? 'bg-emerald-500/10 text-emerald-400'
+                      : 'bg-amber-500/10 text-amber-400'
+                  }`}
+                >
+                  {isVideo ? 'VIDEO' : 'IMAGE'}
+                </span>
+              </div>
 
-              <p
-                className={`text-[10px] font-semibold ${
+              <div className="mt-3 flex items-center gap-3">
+                <div
+                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${
+                    hasDetections
+                      ? 'bg-emerald-500/10'
+                      : 'bg-amber-500/10'
+                  }`}
+                >
+                  {hasDetections ? (
+                    <Crosshair className="h-5 w-5 text-emerald-400" />
+                  ) : (
+                    <AlertTriangle className="h-5 w-5 text-amber-400" />
+                  )}
+                </div>
+
+                <div className="min-w-0">
+                  <p className="text-2xl font-bold text-white">
+                    {totalDetections}
+                  </p>
+
+                  <p
+                    className={`text-[10px] font-semibold ${
+                      hasDetections
+                        ? 'text-emerald-400'
+                        : 'text-amber-400'
+                    }`}
+                  >
+                    {hasDetections
+                      ? 'VESSELS DETECTED'
+                      : 'NO VESSELS DETECTED'}
+                  </p>
+                </div>
+              </div>
+
+              <div
+                className={`mt-3 flex items-start gap-2 rounded-md p-2 ${
                   hasDetections
-                    ? 'text-emerald-400'
-                    : 'text-amber-400'
+                    ? 'bg-emerald-500/5'
+                    : 'bg-amber-500/5'
                 }`}
               >
-            <p className="text-[10px] leading-relaxed text-slate-300">
-  {hasDetections
-    ? 'Detection successful. Review identified targets.'
-    : 'WARNING: No targets detected. Verify image quality and surveillance coverage.'}
-</p>
-              </p>
+                {hasDetections ? (
+                  <Crosshair className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-400" />
+                ) : (
+                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-400" />
+                )}
+
+                <p className="text-[10px] leading-relaxed text-slate-300">
+                  {hasDetections
+                    ? 'Detection successful. Review identified targets below.'
+                    : 'WARNING: No targets detected. Verify image quality and surveillance coverage.'}
+                </p>
+              </div>
+
+              {result?.model && (
+                <p className="mt-2 truncate text-[10px] text-slate-500">
+                  Model: {result.model}
+                </p>
+              )}
             </div>
-          </div>
-
-          <div
-            className={`mt-3 flex items-start gap-2 rounded-md p-2 ${
-              hasDetections
-                ? 'bg-emerald-500/5'
-                : 'bg-amber-500/5'
-            }`}
-          >
-            <span
-              className={`mt-1 h-2 w-2 shrink-0 rounded-full ${
-                hasDetections
-                  ? 'bg-emerald-400'
-                  : 'bg-amber-400'
-              }`}
-            />
-
-            <p className="text-[10px] leading-relaxed text-slate-300">
-              {hasDetections
-                ? 'Target detection successful. Review detected vessels below.'
-                : 'Warning: No targets identified. Verify image quality and surveillance coverage.'}
-            </p>
-          </div>
-
-          {result?.model && (
-            <p className="mt-2 truncate text-[10px] text-slate-500">
-              Model: {result.model}
-            </p>
           )}
-        </>
-      )
-    })()}
-  </div>
-)}
-
 
           {/* Actual detection markers */}
           {detections.map((detection, index) => {
             const bbox = detection.bbox
 
-            // These are visual indicators only. They are not
-            // geographic vessel coordinates.
+            // Visual indicators only; these are not geographic coordinates.
             const left = bbox
               ? Math.min(
                   88,
-                  Math.max(12, ((bbox.x1 + bbox.x2) / 2 /
-                    (result?.image?.width || 1)) * 100)
+                  Math.max(
+                    12,
+                    (((bbox.x1 + bbox.x2) / 2) /
+                      (result?.image?.width || 1)) *
+                      100
+                  )
                 )
               : 20 + (index % 4) * 18
 
             const top = bbox
               ? Math.min(
                   85,
-                  Math.max(25, ((bbox.y1 + bbox.y2) / 2 /
-                    (result?.image?.height || 1)) * 100)
+                  Math.max(
+                    25,
+                    (((bbox.y1 + bbox.y2) / 2) /
+                      (result?.image?.height || 1)) *
+                      100
+                  )
                 )
               : 40 + (index % 3) * 12
 
@@ -244,7 +230,11 @@ function SurveillanceOverview() {
                 key={`${detection.class_id}-${index}`}
                 className="absolute z-10"
                 style={{ left: `${left}%`, top: `${top}%` }}
-                title={`${detection.class_name} - ${(detection.confidence * 100).toFixed(1)}% confidence`}
+                title={`${detection.class_name ?? 'Unknown'} - ${
+                  Number.isFinite(Number(detection.confidence))
+                    ? `${(Number(detection.confidence) * 100).toFixed(1)}% confidence`
+                    : 'N/A'
+                }`}
               >
                 <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-400/20 ring-2 ring-emerald-400">
                   <span className="h-2 w-2 rounded-full bg-emerald-400" />
@@ -266,18 +256,16 @@ function SurveillanceOverview() {
 
         {/* AI Monitor and detection results */}
         <div className="flex min-w-0 flex-col gap-3">
-          <LiveAITargetFeed
-            onDetectionResult={handleDetectionResult}
-          />
+          <LiveAITargetFeed onDetectionResult={handleDetectionResult} />
 
-          {/* Detection list */}
+          {/* Detection Results */}
           <div className="rounded-xl border border-slate-800 bg-slate-900 p-4">
             <div className="mb-3 flex items-center justify-between gap-2">
               <h3 className="text-sm font-semibold text-white">
                 Detection Results
               </h3>
 
-              {result && (
+              {detectionData && (
                 <span className="text-[10px] text-slate-400">
                   {totalDetections} total
                 </span>
@@ -304,6 +292,7 @@ function SurveillanceOverview() {
                         <p className="text-xs font-medium text-slate-300">
                           Timestamp: {frame.timestamp ?? 0}s
                         </p>
+
                         <span className="text-[10px] text-slate-500">
                           {frame.detection_count ??
                             frame.detections?.length ??
@@ -329,9 +318,14 @@ function SurveillanceOverview() {
                 </div>
               )
             ) : detections.length === 0 ? (
-              <p className="text-xs text-slate-500">
-                The model analysed the image but found no objects above its confidence threshold.
-              </p>
+              <div className="flex items-start gap-2 rounded-md border border-amber-500/20 bg-amber-500/5 p-3">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
+                <p className="text-xs leading-relaxed text-amber-200">
+                  Analysis completed, but no objects were detected above the
+                  model's confidence threshold. Verify image quality and
+                  surveillance coverage.
+                </p>
+              </div>
             ) : (
               <div className="max-h-72 space-y-2 overflow-y-auto">
                 {detections.map((detection, index) => (
@@ -344,7 +338,7 @@ function SurveillanceOverview() {
             )}
           </div>
 
-          {/* Status legend below AI Monitor */}
+          {/* Status Legend */}
           <div className="rounded-xl border border-slate-800 bg-slate-900 p-4">
             <h3 className="mb-3 text-xs font-semibold text-slate-300">
               Status Legend
@@ -357,8 +351,8 @@ function SurveillanceOverview() {
             </div>
 
             <p className="mt-3 text-[10px] text-slate-500">
-              Risk statuses require separate maritime risk rules.
-              Detection confidence alone does not establish risk.
+              Risk statuses require separate maritime risk rules. Detection
+              confidence alone does not establish risk.
             </p>
           </div>
         </div>
@@ -368,15 +362,17 @@ function SurveillanceOverview() {
       <div className="grid border-t border-slate-800 sm:grid-cols-3">
         <OverviewMetric
           label="Detected Objects"
-          value={result ? totalDetections : '--'}
+          value={detectionData ? totalDetections : '--'}
         />
 
         <OverviewMetric label="Active Zones" value="06" />
 
         <OverviewMetric
           label="Detection Status"
-          value={result ? 'Analysis received' : 'Awaiting analysis'}
-          valueClass={result ? 'text-emerald-400' : 'text-amber-400'}
+          value={detectionData ? 'Analysis received' : 'Awaiting analysis'}
+          valueClass={
+            detectionData ? 'text-emerald-400' : 'text-amber-400'
+          }
         />
       </div>
     </section>
@@ -420,7 +416,6 @@ function FeedStatus({ icon: Icon, label, status }) {
   return (
     <div className="flex items-center gap-2 rounded-lg border border-slate-800 bg-slate-950 px-3 py-2">
       <Icon className="h-3.5 w-3.5 shrink-0 text-emerald-400" />
-
       <span className="text-xs text-slate-400">{label}</span>
 
       <span className="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wide text-emerald-400">
@@ -440,11 +435,7 @@ function LegendItem({ color, label }) {
   )
 }
 
-function OverviewMetric({
-  label,
-  value,
-  valueClass = 'text-white',
-}) {
+function OverviewMetric({ label, value, valueClass = 'text-white' }) {
   return (
     <div className="border-b border-slate-800 p-4 last:border-b-0 sm:border-b-0 sm:border-r sm:last:border-r-0">
       <p className="text-[10px] uppercase tracking-wider text-slate-600">
