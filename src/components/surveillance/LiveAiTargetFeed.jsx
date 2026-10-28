@@ -4,6 +4,8 @@ import axios from 'axios'
 import {
   Camera,
   Circle,
+  Video,
+  VideoOff,
   ScanLine,
   Wifi,
   Upload,
@@ -25,9 +27,19 @@ function LiveAITargetFeed({ onDetectionResult }) {
   const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [liveActive, setLiveActive] = useState(false)
+  const [liveConnecting, setLiveConnecting] = useState(false)
+  const [liveConnected, setLiveConnected] = useState(false)
+  const [liveResult, setLiveResult] = useState(null)
 
   const fileInputRef = useRef(null)
   const requestIdRef = useRef(0)
+  const videoRef = useRef(null)
+  const canvasRef = useRef(null)
+  const streamRef = useRef(null)
+  const socketRef = useRef(null)
+  const waitingForFrameRef = useRef(false)
+  const liveActiveRef = useRef(false)
 
   const isVideo = selectedFile
     ? VIDEO_EXTENSIONS.includes(
@@ -48,8 +60,184 @@ function LiveAITargetFeed({ onDetectionResult }) {
     return () => URL.revokeObjectURL(objectUrl)
   }, [selectedFile])
 
+  function stopLiveCamera() {
+    liveActiveRef.current = false
+    waitingForFrameRef.current = false
+
+    if (socketRef.current) {
+      socketRef.current.onopen = null
+      socketRef.current.onmessage = null
+      socketRef.current.onerror = null
+      socketRef.current.onclose = null
+      if (socketRef.current.readyState === WebSocket.OPEN || socketRef.current.readyState === WebSocket.CONNECTING) {
+        socketRef.current.close()
+      }
+      socketRef.current = null
+    }
+
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop())
+      streamRef.current = null
+    }
+
+    if (videoRef.current) videoRef.current.srcObject = null
+
+    setLiveActive(false)
+    setLiveConnecting(false)
+    setLiveConnected(false)
+    setLiveResult(null)
+    onDetectionResult?.(null, false)
+  }
+
+  useEffect(() => {
+    return () => {
+      liveActiveRef.current = false
+      if (socketRef.current) socketRef.current.close()
+      if (streamRef.current) streamRef.current.getTracks().forEach((track) => track.stop())
+    }
+  }, [])
+
+  function sendLiveFrame() {
+    const video = videoRef.current
+    const canvas = canvasRef.current
+    const socket = socketRef.current
+
+    if (!liveActiveRef.current || !video || !canvas || !socket || socket.readyState !== WebSocket.OPEN || waitingForFrameRef.current) return
+    if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA || !video.videoWidth || !video.videoHeight) return
+
+    const scale = Math.min(1, 640 / video.videoWidth)
+    canvas.width = Math.max(1, Math.round(video.videoWidth * scale))
+    canvas.height = Math.max(1, Math.round(video.videoHeight * scale))
+    const context = canvas.getContext('2d')
+    if (!context) return
+
+    context.drawImage(video, 0, 0, canvas.width, canvas.height)
+    canvas.toBlob((blob) => {
+      if (!blob || !liveActiveRef.current || !socketRef.current || socketRef.current.readyState !== WebSocket.OPEN) return
+      waitingForFrameRef.current = true
+      blob.arrayBuffer().then((buffer) => {
+        if (liveActiveRef.current && socketRef.current?.readyState === WebSocket.OPEN) {
+          socketRef.current.send(buffer)
+        } else {
+          waitingForFrameRef.current = false
+        }
+      }).catch(() => {
+        waitingForFrameRef.current = false
+      })
+    }, 'image/jpeg', 0.65)
+  }
+
+  async function startLiveCamera() {
+    setError('')
+    setLiveResult(null)
+    setResult(null)
+    setSelectedFile(null)
+    setPreviewUrl('')
+    onDetectionResult?.(null, false)
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setError('Camera access is not available in this browser. Use localhost or HTTPS and try again.')
+      return
+    }
+
+    if (!API_BASE_URL) {
+      setError('API URL is missing. Check VITE_API_BASE_URL in your frontend environment settings.')
+      return
+    }
+
+    setLiveConnecting(true)
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: { ideal: 640 }, height: { ideal: 360 }, facingMode: 'environment' },
+        audio: false,
+      })
+      streamRef.current = stream
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream
+        await videoRef.current.play()
+      }
+
+      const apiUrl = new URL(API_BASE_URL)
+      apiUrl.protocol = apiUrl.protocol === 'https:' ? 'wss:' : 'ws:'
+      apiUrl.pathname = `${apiUrl.pathname.replace(/\/$/, '')}/ws/live`
+      apiUrl.search = ''
+      apiUrl.hash = ''
+
+      const socket = new WebSocket(apiUrl.toString())
+      socket.binaryType = 'arraybuffer'
+      socketRef.current = socket
+      liveActiveRef.current = true
+      setLiveActive(true)
+
+      socket.onopen = () => {
+        setLiveConnecting(false)
+      }
+
+      socket.onmessage = (event) => {
+        let data
+        try {
+          data = JSON.parse(event.data)
+        } catch {
+          waitingForFrameRef.current = false
+          return
+        }
+
+        if (data.type === 'ready') {
+          setLiveConnected(true)
+          setLiveConnecting(false)
+          sendLiveFrame()
+          return
+        }
+
+        if (data.type === 'detection') {
+          waitingForFrameRef.current = false
+          const normalized = {
+            ...data,
+            success: true,
+            model: data.model ?? 'vessel_poc_best.pt',
+            image: { width: data.width ?? 0, height: data.height ?? 0 },
+          }
+          setLiveResult(normalized)
+          onDetectionResult?.(normalized, false)
+          window.setTimeout(sendLiveFrame, 80)
+          return
+        }
+
+        if (data.type === 'error') {
+          waitingForFrameRef.current = false
+          setError(data.message || 'The live detection service returned an error.')
+          window.setTimeout(sendLiveFrame, 500)
+        }
+      }
+
+      socket.onerror = () => {
+        setError('Could not connect to the live detection WebSocket. Check that the backend is running and /ws/live is available.')
+        setLiveConnecting(false)
+      }
+
+      socket.onclose = () => {
+        waitingForFrameRef.current = false
+        setLiveConnected(false)
+        if (liveActiveRef.current) {
+          setError('The live detection connection closed. Stop the camera and try again.')
+          liveActiveRef.current = false
+          setLiveActive(false)
+        }
+      }
+    } catch (err) {
+      stopLiveCamera()
+      setError(err.name === 'NotAllowedError'
+        ? 'Camera permission was denied. Allow camera access in your browser and try again.'
+        : err.message || 'Could not start the live camera.')
+    } finally {
+      setLiveConnecting(false)
+    }
+  }
+
   // Clear the current selection and results locally.
   function clearDetectionResults() {
+    stopLiveCamera()
+    setLiveResult(null)
     // Invalidate any outstanding detection request so it cannot restore old results.
     requestIdRef.current += 1
 
@@ -140,6 +328,10 @@ function LiveAITargetFeed({ onDetectionResult }) {
       }
     }
 
+    // Stop live mode before switching back to file analysis.
+    stopLiveCamera()
+    setLiveResult(null)
+
     // Prevent an earlier request from restoring results for a previous file.
     requestIdRef.current += 1
 
@@ -217,7 +409,7 @@ function LiveAITargetFeed({ onDetectionResult }) {
     ? (result?.total_detections ?? 0)
     : (result?.detection_count ?? detections.length)
 
-  const hasContent = Boolean(selectedFile || result || error)
+  const hasContent = Boolean(selectedFile || result || error || liveActive || liveResult)
 
   function formatTimestamp(value) {
     if (typeof value === 'string' && value.includes(':')) {
@@ -296,17 +488,67 @@ function LiveAITargetFeed({ onDetectionResult }) {
           />
 
           <span className="text-xs font-medium text-slate-400">
-            {loading
-              ? 'ANALYSING'
-              : result?.success
-                ? 'ANALYSED'
-                : 'READY'}
+            {liveConnecting
+              ? 'CONNECTING'
+              : liveConnected
+                ? 'LIVE'
+                : loading
+                  ? 'ANALYSING'
+                  : result?.success
+                    ? 'ANALYSED'
+                    : 'READY'}
           </span>
         </div>
       </div>
 
       <div className="relative aspect-video overflow-hidden bg-slate-900">
-        {previewUrl ? (
+        {liveActive || liveConnecting ? (
+          <>
+            <video
+              ref={videoRef}
+              muted
+              playsInline
+              autoPlay
+              className="absolute inset-0 h-full w-full object-contain"
+            />
+            <canvas ref={canvasRef} className="hidden" />
+            {liveResult?.detections?.map((detection, index) => {
+              const box = detection.bbox ?? {}
+              const width = liveResult.image?.width ?? 0
+              const height = liveResult.image?.height ?? 0
+              if (!width || !height || ![box.x1, box.y1, box.x2, box.y2].every(Number.isFinite)) return null
+              return (
+                <div
+                  key={`${detection.class_id}-${index}`}
+                  className="absolute border-2 border-emerald-400"
+                  style={{
+                    left: `${(box.x1 / width) * 100}%`,
+                    top: `${(box.y1 / height) * 100}%`,
+                    width: `${((box.x2 - box.x1) / width) * 100}%`,
+                    height: `${((box.y2 - box.y1) / height) * 100}%`,
+                  }}
+                >
+                  <span className="absolute -top-6 left-0 whitespace-nowrap rounded bg-emerald-400 px-1.5 py-1 text-[10px] font-semibold text-slate-950">
+                    {detection.class_name} ({formatConfidence(detection.confidence)})
+                  </span>
+                </div>
+              )
+            })}
+            <div className="absolute left-3 top-3 flex items-center gap-2 rounded-md border border-slate-700/70 bg-slate-950/85 px-2.5 py-1.5">
+              <span className={`h-2 w-2 rounded-full ${liveConnected ? 'animate-pulse bg-emerald-400' : 'bg-amber-400'}`} />
+              <span className="text-[10px] font-medium uppercase tracking-wider text-white">
+                {liveConnected ? 'Live AI connected' : 'Connecting live AI...'}
+              </span>
+            </div>
+            {liveResult && (
+              <div className="absolute bottom-3 left-3 rounded-md bg-slate-950/85 px-2 py-1">
+                <span className="text-[10px] font-medium text-emerald-400">
+                  {liveResult.detection_count ?? liveResult.detections?.length ?? 0} vessel detection(s)
+                </span>
+              </div>
+            )}
+          </>
+        ) : previewUrl ? (
           isVideo ? (
             <video
               src={previewUrl}
@@ -356,7 +598,7 @@ function LiveAITargetFeed({ onDetectionResult }) {
         ) : (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-slate-500">
             <Camera className="h-12 w-12 opacity-50" />
-            <p className="text-sm">Select an image or video to begin</p>
+            <p className="text-sm">Start the live camera or select an image/video</p>
           </div>
         )}
 
@@ -368,7 +610,7 @@ function LiveAITargetFeed({ onDetectionResult }) {
           )}
 
           <span className="text-[10px] font-medium uppercase tracking-wider text-slate-300">
-            {isVideo ? 'Video Analysis' : 'Image Analysis'}
+            {liveActive ? 'Live Camera' : isVideo ? 'Video Analysis' : 'Image Analysis'}
           </span>
         </div>
 
@@ -391,6 +633,27 @@ function LiveAITargetFeed({ onDetectionResult }) {
         />
 
         <div className="flex flex-wrap gap-2">
+          {!liveActive ? (
+            <button
+              type="button"
+              onClick={startLiveCamera}
+              disabled={loading || liveConnecting}
+              className="flex items-center gap-2 rounded-lg bg-emerald-500 px-3 py-2 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {liveConnecting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Video className="h-4 w-4" />}
+              {liveConnecting ? 'Connecting...' : 'Start Live Camera'}
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={stopLiveCamera}
+              className="flex items-center gap-2 rounded-lg bg-red-500 px-3 py-2 text-sm font-semibold text-white transition hover:bg-red-400"
+            >
+              <VideoOff className="h-4 w-4" />
+              Stop Camera
+            </button>
+          )}
+
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
@@ -418,7 +681,7 @@ function LiveAITargetFeed({ onDetectionResult }) {
         </div>
 
         <p className="text-xs text-slate-500">
-          Images up to 10 MB · MP4, MOV, AVI videos up to 30 seconds and 100 MB
+          Live camera uses your browser webcam · Images up to 10 MB · MP4, MOV, AVI videos up to 30 seconds and 100 MB
         </p>
 
         {selectedFile && (
@@ -437,16 +700,16 @@ function LiveAITargetFeed({ onDetectionResult }) {
           </div>
         )}
 
-        {result?.success && (
+        {(result?.success || liveResult) && (
           <>
             <div className="grid grid-cols-2 divide-x divide-slate-800 rounded-lg border border-slate-800">
               <div className="min-w-0 p-3">
                 <p className="text-[10px] uppercase tracking-wider text-slate-500">
-                  {isVideo ? 'Total Frame Detections' : 'Detected Targets'}
+                  {liveActive ? 'Live Frame Detections' : isVideo ? 'Total Frame Detections' : 'Detected Targets'}
                 </p>
 
                 <p className="mt-1 text-lg font-semibold text-white">
-                  {detectionCount}
+                  {liveActive ? (liveResult?.detection_count ?? liveResult?.detections?.length ?? 0) : detectionCount}
                 </p>
               </div>
 
@@ -456,12 +719,12 @@ function LiveAITargetFeed({ onDetectionResult }) {
                 </p>
 
                 <p className="mt-1 truncate text-sm font-medium text-emerald-400">
-                  {result.model ?? 'Unknown'}
+                  {liveActive ? (liveResult?.model ?? 'vessel_poc_best.pt') : result.model ?? 'Unknown'}
                 </p>
               </div>
             </div>
 
-            {isVideo ? (
+            {!liveActive && (isVideo ? (
               frames.length > 0 ? (
                 <div className="space-y-3">
                   <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-400">
@@ -573,7 +836,7 @@ function LiveAITargetFeed({ onDetectionResult }) {
               <p className="text-sm text-slate-400">
                 No vessels were detected in this image.
               </p>
-            )}
+            ))}
           </>
         )}
       </div>
